@@ -1,0 +1,91 @@
+:root {
+  font-family: Inter, Arial, sans-serif;
+  color: #2a2a2a;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(160deg, #fff 20%, #fff5f5 100%);
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1,
+h2 {
+  color: #b10000;
+}
+
+.subtitle {
+  margin-top: -8px;
+  margin-bottom: 24px;
+}
+
+.card {
+  border: 1px solid #ffd4d4;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.mode-row,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+input,
+textarea,
+select,
+button,
+.button-link {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid #e8b3b3;
+  padding: 10px;
+  font: inherit;
+}
+
+button,
+.button-link {
+  background: #d60000;
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+
+button.active {
+  background: #8e0000;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.preview {
+  min-height: 180px;
+  border: 1px dashed #dcacac;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.status {
+  color: #0d7a26;
+}
+
+.error {
+  color: #ac0000;
+  font-weight: 600;
+}
