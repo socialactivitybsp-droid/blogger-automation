@@ -1,162 +1,49 @@
-# Blogger Automation (React + Node/Express)
+# Sociallia News Agent
 
-Production-ready blog generation and publishing workflow:
+Modern React dashboard + generation/editor workflow with persistent Zustand state.
 
-- **Frontend (React hooks)** in `src/frontend`
-- **Backend (Node.js + Express)** in `src/backend`
-- **Puter.js AI** generation with strict JSON schema
-- **Google OAuth 2.0** token exchange and secure token storage
-- **Blogger API v3** publishing (live or draft)
+## Stack
+- React + Vite
+- React Router
+- Zustand (persisted in localStorage)
+- Appwrite (Google auth + hero image upload)
+- Puter.js (AI auth)
+- TipTap (Compose editor)
+- Monaco Editor (HTML editor with line numbers)
+- Leaflet + OpenStreetMap (location picker)
 
-## Features
+## Env
+Create `.env`:
 
-### Frontend
-- Input modes:
-  - Title + Description
-  - Description only
-- `Generate` button calls Puter.js and expects strict JSON keys:
+```bash
+VITE_APPWRITE_ENDPOINT=https://sfo.cloud.appwrite.io/v1
+VITE_APPWRITE_PROJECT_ID=695f94f9003a97931795
+VITE_APPWRITE_BUCKET_ID=695f9d8b0029dbe41ecb
+```
+
+## Routes
+- `/` Dashboard
+- `/generate` Generation page
+- `/editor` Editor page
+
+## Features implemented
+- Dashboard with auth actions, post grid, stats, recent activity, tool buttons.
+- Generation page with input mode switch, hero upload, full-screen generating overlay.
+- Editor page with compose/html toggle in one large editor area.
+- Bidirectional sync between TipTap and Monaco via global `content_html` state.
+- Slide-in settings panel for labels, slug, location search/map click, and search description counter.
+- Persistent global state for:
   - `title`
-  - `search_description`
-  - `slug`
-  - `labels`
-  - `hero_image`
   - `content_html`
-- Generated output includes:
-  - Meta panel (title, search description, labels, slug)
-  - Compose View (rendered HTML)
-  - HTML View (raw editable HTML)
-- Master template injection inserts:
-  - hero image
-  - content HTML
-- `Publish to Blogger` button sends final editable HTML to backend.
+  - `labels`
+  - `slug`
+  - `search_description`
+  - `location`
+  - `hero_image`
+- Draft/Publish buttons are dummy UI actions (local status only).
 
-### Backend
-- `POST /api/auth/google`
-  - Exchanges Google OAuth authorization code for access/refresh tokens.
-- `GET /api/user/blogs`
-  - Returns authenticated user's blogs.
-- `POST /api/blogger/publish`
-  - Publishes/saves post draft using Blogger API.
-- Secure token persistence
-  - Encrypted local token file via AES (`src/backend/.tokens.enc`).
-
----
-
-## Project Structure
-
-```txt
-src/
-  frontend/
-    App.jsx
-    app.css
-    utils/masterTemplate.js
-  backend/
-    server.js
-    bloggerClient.js
-    tokenStore.js
-```
-
----
-
-## Environment Variables
-
-Create `.env` in project root:
-
-```env
-# Backend
-PORT=8787
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_REDIRECT_URI=http://localhost:5173/
-TOKEN_ENCRYPTION_KEY=replace-with-strong-random-secret
-CORS_ORIGIN=http://localhost:5173
-
-# Frontend (Vite)
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GOOGLE_REDIRECT_URI=http://localhost:5173/
-VITE_API_BASE_URL=http://localhost:8787
-VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-```
-
-> Use the same `GOOGLE_CLIENT_ID` on frontend and backend.
-
----
-
-## Google Cloud Console Setup (OAuth + Blogger API)
-
-1. Open **Google Cloud Console**.
-2. Create/select a project.
-3. Go to **APIs & Services → Library** and enable:
-   - **Blogger API v3**
-4. Go to **APIs & Services → OAuth consent screen**:
-   - Configure app name, support email, and developer email.
-   - Add scope:
-     - `https://www.googleapis.com/auth/blogger`
-5. Go to **Credentials → Create Credentials → OAuth Client ID**:
-   - Application type: **Web application**
-   - Authorized redirect URI(s):
-     - `http://localhost:5173/`
-     - (plus your production domain callback URI)
-6. Copy **Client ID** and **Client Secret** into `.env`.
-
----
-
-## Install and Run
-
+## Run
 ```bash
 npm install
-npm run backend
 npm run dev
 ```
-
-Or run both in parallel:
-
-```bash
-npm run dev:full
-```
-
-Open frontend at: `http://localhost:5173`.
-
----
-
-## OAuth Flow
-
-1. Click **Sign in with Google** in frontend.
-2. Complete consent flow.
-3. You return to redirect URI with `?code=...`.
-4. Click **Complete OAuth (after redirect)**.
-5. Click **Load Blogs** to list your blogs.
-
----
-
-## Blogger Publish Request
-
-Backend sends:
-
-- `POST https://www.googleapis.com/blogger/v3/blogs/{blogId}/posts`
-- Header: `Authorization: Bearer ACCESS_TOKEN`
-- Header: `Content-Type: application/json`
-- Body:
-
-```json
-{
-  "kind": "blogger#post",
-  "blog": { "id": "blogId" },
-  "title": "...",
-  "content": "...",
-  "labels": ["..."]
-}
-```
-
-Draft mode uses `?isDraft=true`.
-
----
-
-## Notes for Production Deployment
-
-- Move token storage from local file to encrypted database or secret manager.
-- Use HTTPS-only redirect URIs.
-- Rotate `TOKEN_ENCRYPTION_KEY` and use a KMS-backed secret.
-- Restrict CORS to trusted frontend domain(s).
-- Add structured logs and monitoring.
-

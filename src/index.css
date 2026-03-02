@@ -1,7 +1,71 @@
-* {
-  box-sizing: border-box;
+:root {
+  font-family: Inter, Arial, sans-serif;
+  color: #1f2937;
+  background: #f3f4f6;
 }
 
-body {
-  margin: 0;
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.page { max-width: 1200px; margin: 0 auto; padding: 18px; }
+.card { background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,.06); margin-bottom: 16px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.navbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.nav-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.user-chip { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 999px; padding: 6px 10px; }
+.user-chip img { width: 28px; height: 28px; border-radius: 50%; }
+.badge.ok { color: #0f9d58; } .badge.bad { color: #d93025; }
+
+.btn { border: 0; border-radius: 12px; padding: 10px 14px; cursor: pointer; background: #dc2626; color: #fff; transition: .2s; }
+.btn:hover { transform: translateY(-1px); }
+.btn.secondary { background: #111827; }
+.btn.danger { background: #b91c1c; }
+.btn.large { padding: 14px 24px; font-size: 1rem; }
+.btn.generate { width: 100%; max-width: 360px; display: block; margin: 0 auto; font-size: 1.1rem; }
+
+input, textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; font: inherit; margin-bottom: 10px; }
+
+.stats-grid, .post-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.stat-card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.05); }
+.post-card { border: 1px solid #eee; border-radius: 12px; padding: 12px; }
+.post-head { display: flex; justify-content: space-between; gap: 8px; }
+.status { text-transform: capitalize; border-radius: 999px; padding: 2px 8px; font-size: .8rem; }
+.status.draft { background: #e5e7eb; } .status.published { background: #bbf7d0; }
+.tag { background: #fee2e2; border-radius: 999px; padding: 3px 8px; margin-right: 6px; font-size: .75rem; }
+
+.hero-upload { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.upload-box { width: 220px; height: 180px; border: 2px dashed #cbd5e1; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #475569; cursor: pointer; }
+.upload-icon { font-size: 2rem; }
+.hero-preview { width: min(100%, 460px); border-radius: 12px; }
+
+.loading-overlay { position: fixed; inset: 0; background: rgba(243,244,246,.95); display: grid; place-items: center; z-index: 1000; }
+.loading-overlay h2 { margin-top: 16px; font-size: 2rem; }
+.spinner { width: 120px; height: 120px; border: 12px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.editor-top { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.icon-btn { border: 0; background: transparent; font-size: 1.6rem; cursor: pointer; }
+.title-input { font-size: 1.5rem; font-weight: 600; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.toolbar > button, .view-toggle button { border: 1px solid #d1d5db; background: #fff; border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+.view-toggle { margin-left: auto; display: flex; gap: 8px; }
+.view-toggle .active { background: #111827; color: #fff; }
+.active-view { margin: 0 0 8px; color: #6b7280; }
+.editor-shell { height: 65vh; background: #fff; border: 1px solid #d1d5db; border-radius: 12px; overflow: hidden; }
+.compose-editor { height: 100%; overflow: auto; padding: 12px; }
+.compose-editor .ProseMirror { min-height: 100%; outline: none; }
+
+.settings-panel { position: fixed; top: 0; right: -420px; width: 400px; max-width: 92vw; height: 100vh; background: #fff; z-index: 1200; box-shadow: -10px 0 30px rgba(0,0,0,.12); transition: right .25s ease; padding: 16px; overflow: auto; }
+.settings-panel.open { right: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; }
+.map { height: 220px; border-radius: 10px; overflow: hidden; margin: 8px 0; }
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 1100; }
+
+.recent-list { list-style: none; margin: 0; padding: 0; }
+.recent-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+
+@media (max-width: 768px) {
+  .navbar { flex-direction: column; align-items: flex-start; }
+  .editor-shell { height: 58vh; }
 }
