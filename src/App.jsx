@@ -19,18 +19,27 @@ function AppShell() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [puterConnected, setPuterConnected] = useState(false);
+  const [authConfig, setAuthConfig] = useState({ googleClientId: '', googleRedirectUri: '', missing: [] });
 
-  const googleAuthUrl = useMemo(() => {
+  useEffect(() => {
+    fetch(`${API_BASE}/api/auth/config`)
+      .then((r) => r.json())
+      .then((payload) => setAuthConfig(payload))
+      .catch(() => setMsg('Could not load backend auth config.'));
+  }, []);
+
+  const bloggerOAuthUrl = useMemo(() => {
+    if (!authConfig.googleClientId || !authConfig.googleRedirectUri) return '';
     const params = new URLSearchParams({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-      redirect_uri: import.meta.env.VITE_GOOGLE_REDIRECT_URI || window.location.origin,
+      client_id: authConfig.googleClientId,
+      redirect_uri: authConfig.googleRedirectUri,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/blogger',
       access_type: 'offline',
       prompt: 'consent',
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  }, []);
+  }, [authConfig]);
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code');
@@ -44,7 +53,7 @@ function AppShell() {
       .then((r) => r.json())
       .then((payload) => {
         if (payload.error) throw new Error(payload.error);
-        setMsg('Google OAuth connected.');
+        setMsg('Blogger OAuth connected successfully.');
         window.history.replaceState({}, '', window.location.pathname);
       })
       .catch((error) => setMsg(`OAuth failed: ${error.message}`));
@@ -78,7 +87,7 @@ function AppShell() {
   const handleGenerate = () => {
     setLoading(true);
     setTimeout(() => {
-      const title = mode === 'title-description' ? seedTitle || `News: ${descriptionInput.slice(0, 45)}` : `News: ${descriptionInput.slice(0, 45)}`;
+      const title = seedTitle || `News: ${descriptionInput.slice(0, 45)}`;
       const labels = ['sociallia', 'news'];
       const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const content = `<p>${descriptionInput || 'Generated content.'}</p><p>More details will be edited in compose view.</p>`;
@@ -171,13 +180,19 @@ function AppShell() {
       <header className="topbar">
         <h1>Sociallia News Agent</h1>
         <div className="actions">
-          <a className="btn" href={googleAuthUrl}>Sign in with Google</a>
+          <a className="btn" href={bloggerOAuthUrl || '#'}>Connect Blogger OAuth</a>
           <button className="btn secondary" type="button" onClick={() => safeAction(connectPuter)}>
             Sign in with Puter AI
           </button>
           <span className={puterConnected ? 'connected' : 'disconnected'}>{puterConnected ? '● Connected' : '● Not Connected'}</span>
         </div>
       </header>
+
+      {authConfig.missing?.length ? (
+        <p className="msg">Missing backend env: {authConfig.missing.join(', ')}</p>
+      ) : (
+        <p className="hint">OAuth redirect in use: <b>{authConfig.googleRedirectUri}</b></p>
+      )}
 
       <section className="toolbar-row">
         <button className="btn secondary" type="button" onClick={() => setPage('dashboard')}>Dashboard</button>

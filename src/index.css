@@ -21,6 +21,7 @@ input, textarea { width: 100%; margin: 8px 0; }
 .html-editor { min-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .settings-panel { margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
 .msg { background: #fef2f2; color: #991b1b; padding: 8px; border-radius: 8px; }
+.hint { background:#eef2ff; color:#1e3a8a; padding:8px; border-radius:8px; }
 .connected { color: #15803d; }
 .disconnected { color: #b91c1c; }
 .overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); display: grid; place-items: center; z-index: 50; }

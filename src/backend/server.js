@@ -12,7 +12,6 @@ import {
 import { readTokens, saveTokens } from './tokenStore.js';
 
 const port = Number(process.env.PORT || 8787);
-
 const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
 
 function sendJson(res, status, payload) {
@@ -39,10 +38,10 @@ function assertEnv() {
 
 async function getValidAccessToken() {
   const saved = await readTokens();
-  if (!saved) throw new Error('No OAuth tokens found. Authorize first.');
+  if (!saved) throw new Error('No OAuth tokens found. Authorize Blogger first.');
 
   if (!saved.expires_at || Date.now() > saved.expires_at - 60_000) {
-    if (!saved.refresh_token) throw new Error('Refresh token missing. Re-authorize with prompt=consent.');
+    if (!saved.refresh_token) throw new Error('Refresh token missing. Re-authorize with consent prompt.');
     const refreshed = await refreshAccessToken(saved.refresh_token);
     const updated = {
       ...saved,
@@ -57,15 +56,22 @@ async function getValidAccessToken() {
 }
 
 const server = createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') {
-    return sendJson(res, 200, { ok: true });
-  }
+  if (req.method === 'OPTIONS') return sendJson(res, 200, { ok: true });
 
   const { pathname, query } = parseUrl(req.url, true);
 
   try {
     if (pathname === '/api/health' && req.method === 'GET') {
       return sendJson(res, 200, { ok: true });
+    }
+
+    if (pathname === '/api/auth/config' && req.method === 'GET') {
+      const missing = requiredEnv.filter((key) => !process.env[key]);
+      return sendJson(res, 200, {
+        googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+        googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || '',
+        missing,
+      });
     }
 
     if (pathname === '/api/auth/google' && req.method === 'POST') {

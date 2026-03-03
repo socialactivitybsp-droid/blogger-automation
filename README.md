@@ -1,35 +1,48 @@
-# Sociallia News Agent (Working Blogger Integration)
+# Sociallia News Agent (Blogger OAuth + Publish)
 
-This version is focused on making Blogger workflow actually work end-to-end:
+This build supports a full Blogger flow:
+- connect Blogger OAuth
+- load blogs
+- load already uploaded posts (live + draft)
+- create new post (live or draft)
+- update an existing post
 
-- Google OAuth code exchange
-- Token refresh handling
-- Load user blogs
-- Load already uploaded posts (live + draft)
-- Create new post as LIVE or DRAFT
-- Update existing posts
+## Why you were getting `invalid_redirect_uri`
 
-## Required environment variables
+Your previous env used Appwrite callback URI as `GOOGLE_REDIRECT_URI`:
 
-Create `.env` in project root:
+`https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/google/695f94f9003a97931795`
+
+That URI is valid for **Appwrite-managed login flow**, but your backend `/api/auth/google` does a **direct Google code exchange**. For that backend exchange flow, Google must redirect back to **your app URL**, not Appwrite callback.
+
+## Correct setup (recommended for this code)
+
+### 1) Google Cloud Console → OAuth Client (Web)
+Add this Authorized Redirect URI:
+- `http://localhost:5173`
+
+(plus your production frontend callback URL, e.g. `https://yourdomain.com`)
+
+### 2) `.env`
+Use this shape:
 
 ```env
 PORT=8787
 CORS_ORIGIN=http://localhost:5173
 
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID
+GOOGLE_CLIENT_SECRET=YOUR_WEB_CLIENT_SECRET
 GOOGLE_REDIRECT_URI=http://localhost:5173
-TOKEN_ENCRYPTION_KEY=change-this-secret
+TOKEN_ENCRYPTION_KEY=CHANGE_THIS_SECRET
 
 VITE_API_BASE_URL=http://localhost:8787
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GOOGLE_REDIRECT_URI=http://localhost:5173
 
 VITE_APPWRITE_ENDPOINT=https://sfo.cloud.appwrite.io/v1
 VITE_APPWRITE_PROJECT_ID=695f94f9003a97931795
 VITE_APPWRITE_BUCKET_ID=695f9d8b0029dbe41ecb
 ```
+
+> `VITE_GOOGLE_CLIENT_ID` and `VITE_GOOGLE_REDIRECT_URI` are not needed now; frontend reads backend auth config via `/api/auth/config`.
 
 ## Run
 
@@ -44,18 +57,12 @@ npm run dev
 ```
 
 ## Backend endpoints
+- `GET /api/auth/config`
+- `POST /api/auth/google`
+- `GET /api/user/blogs`
+- `GET /api/blogger/posts?blogId=...`
+- `POST /api/blogger/publish`
+- `POST /api/blogger/update`
 
-- `POST /api/auth/google` - exchange OAuth code
-- `GET /api/user/blogs` - list blogs
-- `GET /api/blogger/posts?blogId=...` - list uploaded posts
-- `POST /api/blogger/publish` - create post (`publishMode: LIVE|DRAFT`)
-- `POST /api/blogger/update` - update existing post
-
-## UI flow
-
-1. Click **Sign in with Google**.
-2. After redirect, app exchanges code automatically.
-3. Click **Load Blogs**.
-4. Select blog and click **Load Uploaded Posts**.
-5. Create new draft/live posts or edit loaded posts and click **Update Post**.
-
+## Important security note
+You posted your Google client secret publicly in chat/screenshots. Rotate that secret immediately in Google Cloud Console and update `.env`.
