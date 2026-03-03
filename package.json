@@ -1,10 +1,12 @@
 {
-  "name": "ai-blogger",
+  "name": "sociallia-news-agent",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "backend": "node src/backend/server.js",
+    "dev:full": "sh -c 'npm run backend & npm run dev'",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
