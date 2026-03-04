@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StoreProvider, useStore } from './store/useStore';
 import { MASTER_TEMPLATE } from './utils/masterTemplate';
+import DashboardPage from './pages/DashboardPage';
+import PostDetailsPage from './pages/PostDetailsPage';
+import PostEditPage from './pages/PostEditPage';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
 
@@ -8,25 +11,50 @@ function injectTemplate(hero, content) {
   return MASTER_TEMPLATE.replaceAll('{{HERO_IMAGE}}', hero || '').replace('{{CONTENT}}', content || '<p></p>');
 }
 
+async function uploadHeroToAppwrite(file) {
+  if (!file) return '';
+  const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+  const bucket = import.meta.env.VITE_APPWRITE_BUCKET_ID;
+  const project = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  const form = new FormData();
+  form.append('fileId', 'unique()');
+  form.append('file', file);
+
+  const response = await fetch(`${endpoint}/storage/buckets/${bucket}/files`, {
+    method: 'POST',
+    headers: { 'X-Appwrite-Project': project },
+    body: form,
+    credentials: 'include',
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || 'Appwrite upload failed. Ensure Appwrite auth/session exists.');
+  return `${endpoint}/storage/buckets/${bucket}/files/${payload.$id}/view?project=${project}`;
+}
+
+function parsePuterJson(rawText) {
+  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
+  return {
+    title: parsed.title || '',
+    search_description: parsed.search_description || '',
+    slug: parsed.slug || '',
+    labels: Array.isArray(parsed.labels)
+      ? parsed.labels
+      : String(parsed.labels || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+    content_html: parsed.content_html || '<p></p>',
+    location: { name: 'Bilaspur Chhattisgarh', lat: '22.0797', lng: '82.1391' },
+  };
+}
+
 function AppShell() {
   const { state, update } = useStore();
   const [page, setPage] = useState('dashboard');
-  const [mode, setMode] = useState('title-description');
-  const [seedTitle, setSeedTitle] = useState(state.title);
-  const [descriptionInput, setDescriptionInput] = useState(state.search_description);
-  const [viewMode, setViewMode] = useState('compose');
-  const [showSettings, setShowSettings] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [puterConnected, setPuterConnected] = useState(false);
   const [authConfig, setAuthConfig] = useState({ googleClientId: '', googleRedirectUri: '', missing: [] });
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/auth/config`)
-      .then((r) => r.json())
-      .then((payload) => setAuthConfig(payload))
-      .catch(() => setMsg('Could not load backend auth config.'));
-  }, []);
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const bloggerOAuthUrl = useMemo(() => {
     if (!authConfig.googleClientId || !authConfig.googleRedirectUri) return '';
@@ -42,9 +70,15 @@ function AppShell() {
   }, [authConfig]);
 
   useEffect(() => {
+    fetch(`${API_BASE}/api/auth/config`)
+      .then((r) => r.json())
+      .then((payload) => setAuthConfig(payload))
+      .catch(() => setMsg('Could not load backend auth config.'));
+  }, []);
+
+  useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code');
     if (!code) return;
-
     fetch(`${API_BASE}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,11 +93,10 @@ function AppShell() {
       .catch((error) => setMsg(`OAuth failed: ${error.message}`));
   }, []);
 
-  const connectPuter = async () => {
+  const safe = async (fn) => {
     try {
-      if (!window.puter?.auth?.signIn) throw new Error('Puter.js unavailable');
-      await window.puter.auth.signIn();
-      setPuterConnected(true);
+      setMsg('');
+      await fn();
     } catch (error) {
       setMsg(error.message);
     }
@@ -84,48 +117,34 @@ function AppShell() {
     update({ posts: payload.posts || [] });
   };
 
-  const handleGenerate = () => {
+  const generateWithPuter = async ({ mode, seedTitle, description }) => {
     setLoading(true);
-    setTimeout(() => {
-      const title = seedTitle || `News: ${descriptionInput.slice(0, 45)}`;
-      const labels = ['sociallia', 'news'];
-      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const content = `<p>${descriptionInput || 'Generated content.'}</p><p>More details will be edited in compose view.</p>`;
-      update({
-        title,
-        labels,
-        slug,
-        search_description: descriptionInput.slice(0, 150),
-        content_html: injectTemplate(state.hero_image, content),
-      });
-      setLoading(false);
-      setPage('editor');
-    }, 1200);
-  };
-
-  const uploadHero = async (file) => {
-    if (!file) return;
     try {
-      const form = new FormData();
-      form.append('fileId', `hero-${Date.now()}`);
-      form.append('file', file);
+      let heroUrl = state.hero_image;
+      if (state.heroFile) {
+        heroUrl = await uploadHeroToAppwrite(state.heroFile);
+      }
 
-      const upload = await fetch(
-        `${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${import.meta.env.VITE_APPWRITE_BUCKET_ID}/files`,
-        {
-          method: 'POST',
-          headers: { 'X-Appwrite-Project': import.meta.env.VITE_APPWRITE_PROJECT_ID },
-          body: form,
-        },
-      );
-      const payload = await upload.json();
-      if (!upload.ok) throw new Error(payload.message || 'Appwrite upload failed');
+      const prompt = `Return STRICT JSON only with keys: title,search_description,slug,labels,hero_image,content_html,location.
+location must always be "Bilaspur Chhattisgarh".
+Generate complete content_html with valid paragraphs/headings.
+mode: ${mode}\nseedTitle: ${seedTitle}\ndescription: ${description}`;
 
-      const imageUrl = `${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${import.meta.env.VITE_APPWRITE_BUCKET_ID}/files/${payload.$id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`;
-      update({ hero_image: imageUrl, content_html: injectTemplate(imageUrl, state.content_html) });
-    } catch {
-      const local = URL.createObjectURL(file);
-      update({ hero_image: local, content_html: injectTemplate(local, state.content_html) });
+      const ai = await window.puter.ai.chat(prompt);
+      const generated = parsePuterJson(ai?.message?.content || '{}');
+      const contentWithTemplate = injectTemplate(heroUrl || generated.hero_image, generated.content_html);
+
+      update({
+        ...generated,
+        hero_image: heroUrl || generated.hero_image,
+        content_html: contentWithTemplate,
+        showSettings: true,
+        editorMode: 'compose',
+        postId: '',
+      });
+      setPage('edit');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -145,10 +164,10 @@ function AppShell() {
     if (!response.ok) throw new Error(payload.error || 'Publish failed');
     setMsg(`Success: ${payload.url}`);
     await fetchPosts();
+    setPage('dashboard');
   };
 
   const updateExistingPost = async () => {
-    if (!state.postId) throw new Error('Select a post from dashboard first');
     const response = await fetch(`${API_BASE}/api/blogger/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -164,147 +183,88 @@ function AppShell() {
     if (!response.ok) throw new Error(payload.error || 'Update failed');
     setMsg(`Updated: ${payload.url}`);
     await fetchPosts();
+    setPage('dashboard');
   };
 
-  const safeAction = async (task) => {
-    try {
-      setMsg('');
-      await task();
-    } catch (error) {
-      setMsg(error.message);
-    }
+  const editPost = (post) => {
+    update({
+      postId: post.id,
+      title: post.title || '',
+      content_html: post.content || '<p></p>',
+      labels: post.labels || [],
+      showSettings: true,
+      editorMode: 'compose',
+      location: { name: 'Bilaspur Chhattisgarh', lat: '22.0797', lng: '82.1391' },
+    });
+    setPage('edit');
   };
 
   return (
-    <main className="app">
-      <header className="topbar">
-        <h1>Sociallia News Agent</h1>
+    <main className="cms-shell">
+      <header className="cms-header">
+        <div>
+          <h1>Sociallia News Agent</h1>
+          <p className="sub">AI-assisted CMS for Blogger publishing</p>
+        </div>
         <div className="actions">
-          <a className="btn" href={bloggerOAuthUrl || '#'}>Connect Blogger OAuth</a>
-          <button className="btn secondary" type="button" onClick={() => safeAction(connectPuter)}>
+          <a className="btn pulse" href={bloggerOAuthUrl || '#'}>Connect Blogger OAuth</a>
+          <button
+            className="btn dark pulse"
+            type="button"
+            onClick={() => safe(async () => {
+              if (!window.puter?.auth?.signIn) throw new Error('Puter.js unavailable');
+              await window.puter.auth.signIn();
+              setMsg('Puter connected.');
+            })}
+          >
             Sign in with Puter AI
           </button>
-          <span className={puterConnected ? 'connected' : 'disconnected'}>{puterConnected ? '● Connected' : '● Not Connected'}</span>
         </div>
       </header>
 
-      {authConfig.missing?.length ? (
-        <p className="msg">Missing backend env: {authConfig.missing.join(', ')}</p>
-      ) : (
-        <p className="hint">OAuth redirect in use: <b>{authConfig.googleRedirectUri}</b></p>
-      )}
-
-      <section className="toolbar-row">
-        <button className="btn secondary" type="button" onClick={() => setPage('dashboard')}>Dashboard</button>
-        <button className="btn secondary" type="button" onClick={() => setPage('generate')}>+ Create Post</button>
-        <button className="btn secondary" type="button" onClick={() => safeAction(fetchBlogs)}>Load Blogs</button>
+      <section className="top-controls">
+        <button className="btn dark pulse" type="button" onClick={() => setPage('dashboard')}>Dashboard</button>
+        <button className="btn dark pulse" type="button" onClick={() => setPage('details')}>Post Details</button>
+        <button className="btn dark pulse" type="button" onClick={() => safe(fetchBlogs)}>Load Blogs</button>
         <select value={state.selectedBlogId} onChange={(e) => update({ selectedBlogId: e.target.value })}>
           <option value="">Select blog</option>
           {state.blogs.map((blog) => (
             <option key={blog.id} value={blog.id}>{blog.name}</option>
           ))}
         </select>
-        <button className="btn secondary" type="button" onClick={() => safeAction(fetchPosts)}>Load Uploaded Posts</button>
       </section>
 
+      {authConfig.missing?.length ? <p className="msg">Missing backend env: {authConfig.missing.join(', ')}</p> : null}
       {msg ? <p className="msg">{msg}</p> : null}
 
       {page === 'dashboard' ? (
-        <section className="card">
-          <h2>Posts Overview</h2>
-          {state.posts.length === 0 ? <p>No posts yet. Create your first AI article.</p> : null}
-          <div className="grid">
-            {state.posts.map((post) => (
-              <article key={post.id} className="post-card">
-                <h3>{post.title}</h3>
-                <p>{(post.content || '').replace(/<[^>]+>/g, '').slice(0, 120)}</p>
-                <small>{new Date(post.updated || post.published || Date.now()).toLocaleString()}</small>
-                <p><b>Status:</b> {post.status || 'LIVE'}</p>
-                <button
-                  className="btn secondary"
-                  type="button"
-                  onClick={() => {
-                    update({
-                      postId: post.id,
-                      title: post.title || '',
-                      content_html: post.content || '<p></p>',
-                      labels: post.labels || [],
-                    });
-                    setPage('editor');
-                  }}
-                >
-                  Edit
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
+        <DashboardPage
+          state={state}
+          onCreate={() => setPage('details')}
+          onLoadPosts={() => safe(fetchPosts)}
+          onEditPost={editPost}
+        />
       ) : null}
 
-      {page === 'generate' ? (
-        <section className="card">
-          <h2>1) Input Mode</h2>
-          <label><input type="radio" checked={mode === 'title-description'} onChange={() => setMode('title-description')} /> Title + Description</label>
-          <label><input type="radio" checked={mode === 'description-only'} onChange={() => setMode('description-only')} /> Only Description</label>
-          {mode === 'title-description' ? <input placeholder="Seed title" value={seedTitle} onChange={(e) => setSeedTitle(e.target.value)} /> : null}
-          <textarea placeholder="Story facts, angle, location, and context" rows={7} value={descriptionInput} onChange={(e) => setDescriptionInput(e.target.value)} />
-          <h2>2) Hero Image Upload</h2>
-          <label className="upload-box">
-            <input hidden type="file" accept="image/*" onChange={(e) => safeAction(() => uploadHero(e.target.files?.[0]))} />
-            <span>File Upload</span>
-          </label>
-          {state.hero_image ? <img className="hero-preview" src={state.hero_image} alt="hero" /> : null}
-          <button className="btn big" type="button" onClick={handleGenerate}>Generate</button>
-        </section>
+      {page === 'details' ? (
+        <PostDetailsPage
+          state={state}
+          update={update}
+          onGenerateWithPuter={(args) => safe(() => generateWithPuter(args))}
+          onNext={() => setPage('edit')}
+        />
       ) : null}
 
-      {page === 'editor' ? (
-        <section className="card editor">
-          <div className="editor-actions">
-            <button className="btn secondary" type="button" onClick={() => setPage('generate')}>← Back</button>
-            <button className="btn secondary" type="button" onClick={() => setShowSettings((prev) => !prev)}>⚙ Settings</button>
-            <button className="btn secondary" type="button" onClick={() => safeAction(() => publish('DRAFT'))}>Save Draft</button>
-            <button className="btn" type="button" onClick={() => safeAction(() => publish('LIVE'))}>Publish</button>
-            <button className="btn secondary" type="button" onClick={() => safeAction(updateExistingPost)}>Update Post</button>
-          </div>
-
-          <input value={state.title} onChange={(e) => update({ title: e.target.value })} placeholder="Title" />
-          <div className="view-toggle">
-            <button className={viewMode === 'compose' ? 'active' : ''} type="button" onClick={() => setViewMode('compose')}>Compose View</button>
-            <button className={viewMode === 'html' ? 'active' : ''} type="button" onClick={() => setViewMode('html')}>HTML View</button>
-          </div>
-
-          {viewMode === 'compose' ? (
-            <div
-              className="compose"
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => update({ content_html: e.currentTarget.innerHTML })}
-              dangerouslySetInnerHTML={{ __html: state.content_html }}
-            />
-          ) : (
-            <textarea className="html-editor" value={state.content_html} onChange={(e) => update({ content_html: e.target.value })} />
-          )}
-
-          {showSettings ? (
-            <aside className="settings-panel">
-              <h3>Post settings</h3>
-              <label>Labels (comma separated)</label>
-              <input value={state.labels.join(', ')} onChange={(e) => update({ labels: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} />
-              <label>Permalink</label>
-              <input value={state.slug} onChange={(e) => update({ slug: e.target.value })} />
-              <label>Location</label>
-              <input value={state.location.name} onChange={(e) => update({ location: { ...state.location, name: e.target.value } })} />
-              <div className="row">
-                <input placeholder="Lat" value={state.location.lat} onChange={(e) => update({ location: { ...state.location, lat: e.target.value } })} />
-                <input placeholder="Lng" value={state.location.lng} onChange={(e) => update({ location: { ...state.location, lng: e.target.value } })} />
-              </div>
-              <label>Search description (max 150)</label>
-              <textarea maxLength={150} value={state.search_description} onChange={(e) => update({ search_description: e.target.value })} />
-              <small>{state.search_description.length}/150</small>
-            </aside>
-          ) : null}
-        </section>
+      {page === 'edit' ? (
+        <PostEditPage
+          state={state}
+          update={update}
+          onBack={() => setPage('details')}
+          onPublish={() => safe(() => publish('LIVE'))}
+          onSaveDraft={() => safe(() => publish('DRAFT'))}
+          onUpdatePost={() => safe(updateExistingPost)}
+          isExisting={Boolean(state.postId)}
+        />
       ) : null}
 
       {loading ? (

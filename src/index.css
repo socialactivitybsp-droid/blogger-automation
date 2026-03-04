@@ -1,29 +1,54 @@
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, Arial, sans-serif; background: #f3f4f6; color: #111827; }
-.app { max-width: 1200px; margin: 0 auto; padding: 16px; }
-.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.actions, .toolbar-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
-.btn { border: 0; background: #dc2626; color: #fff; padding: 10px 14px; border-radius: 10px; cursor: pointer; text-decoration: none; }
-.btn.secondary { background: #1f2937; }
-.btn.big { width: 100%; margin-top: 10px; }
+body { margin: 0; font-family: Inter, Arial, sans-serif; background: radial-gradient(circle at top, #e0e7ff, #f8fafc 45%); color: #0f172a; }
+
+.cms-shell { max-width: 1250px; margin: 0 auto; padding: 20px; }
+.cms-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px; background: #ffffffd9; backdrop-filter: blur(6px); border-radius: 16px; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
+.cms-header h1 { margin: 0; font-size: 2rem; }
+.sub { margin: 4px 0 0; color: #475569; }
+
+.actions, .top-controls, .panel-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.top-controls { margin: 14px 0; }
+
+.btn { border: 0; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; padding: 10px 14px; border-radius: 10px; cursor: pointer; text-decoration: none; font-weight: 600; transition: transform .12s ease, box-shadow .2s ease, filter .2s; box-shadow: 0 8px 20px rgba(239,68,68,.28); }
+.btn.dark { background: linear-gradient(135deg,#0f172a,#1e293b); box-shadow: 0 8px 20px rgba(30,41,59,.35); }
+.btn:hover { filter: brightness(1.03); }
+.btn:active, .pulse:active { transform: scale(.96); }
+.pulse { position: relative; }
+.pulse::after { content:''; position:absolute; inset:0; border-radius: inherit; opacity:0; }
+.pulse:active::after { animation: click-wave .25s ease; background: rgba(255,255,255,.25); }
+@keyframes click-wave { from{opacity:.6} to{opacity:0} }
+
 select, input, textarea { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; font: inherit; }
 input, textarea { width: 100%; margin: 8px 0; }
-.card { background: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); margin-bottom: 12px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
-.post-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
-.upload-box { display: grid; place-items: center; border: 2px dashed #cbd5e1; height: 160px; border-radius: 12px; cursor: pointer; }
-.hero-preview { width: min(100%, 460px); border-radius: 10px; display: block; margin: 10px auto; }
-.editor-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-.view-toggle { display: flex; gap: 8px; margin: 8px 0; }
-.view-toggle button { border: 1px solid #d1d5db; padding: 8px 10px; border-radius: 8px; background: #fff; }
-.view-toggle .active { background: #111827; color: #fff; }
-.compose { min-height: 420px; border: 1px solid #d1d5db; border-radius: 10px; padding: 12px; }
-.html-editor { min-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.settings-panel { margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
-.msg { background: #fef2f2; color: #991b1b; padding: 8px; border-radius: 8px; }
-.hint { background:#eef2ff; color:#1e3a8a; padding:8px; border-radius:8px; }
-.connected { color: #15803d; }
-.disconnected { color: #b91c1c; }
-.overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); display: grid; place-items: center; z-index: 50; }
+
+.panel { background: #ffffffdd; border-radius: 16px; padding: 16px; box-shadow: 0 10px 28px rgba(15,23,42,.08); }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cards-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.post-card { border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #fff; }
+.card-image { width: 100%; height: 150px; object-fit: cover; display: block; }
+.card-body { padding: 12px; }
+.empty { color: #64748b; }
+
+.upload-box { display: grid; place-items: center; border: 2px dashed #94a3b8; height: 160px; border-radius: 12px; cursor: pointer; color: #334155; font-weight: 600; }
+.hero-preview { width: min(100%, 520px); border-radius: 12px; display: block; margin: 12px auto; box-shadow: 0 6px 20px rgba(0,0,0,.14); }
+
+.editor-page { margin-top: 12px; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 14px; padding: 10px; position: relative; }
+.editor-topbar { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px; background:#fff; border-radius: 12px; }
+.icon-btn { border: 0; background: #fff; border-radius: 10px; padding: 8px 10px; font-size: 1.1rem; cursor: pointer; }
+.title-line { font-size: 1.2rem; border: 0; border-bottom: 2px solid #f97316; border-radius: 0; margin: 0; }
+.editor-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+.toolbar.blogger-like { margin: 10px 0; padding: 8px; border-radius: 10px; background:#fff; border:1px solid #e2e8f0; display:flex; gap:8px; }
+.toolbar button { border:1px solid #d1d5db; border-radius:8px; padding:8px 10px; background:#fff; }
+
+.blogger-sheet { min-height: 62vh; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; }
+.compose { padding: 14px; overflow:auto; }
+.html-editor { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 12px; }
+
+.settings-drawer { position: absolute; top: 70px; right: 12px; width: 340px; max-width: calc(100% - 24px); background: #ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; box-shadow: 0 12px 26px rgba(0,0,0,.18); z-index: 10; }
+.leaflet-box { height: 220px; border-radius: 10px; overflow: hidden; border:1px solid #cbd5e1; margin:8px 0; }
+
+.msg { margin: 10px 0; background: #fff1f2; color: #9f1239; padding: 10px; border-radius: 10px; }
+.overlay { position: fixed; inset: 0; background: rgba(255,255,255,.95); display: grid; place-items: center; z-index: 100; }
 .spinner { width: 120px; height: 120px; border: 10px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg);} }

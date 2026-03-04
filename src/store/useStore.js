@@ -14,6 +14,9 @@ const initialState = {
   posts: [],
   selectedBlogId: '',
   postId: '',
+  heroFile: null,
+  showSettings: true,
+  editorMode: 'compose',
 };
 
 const StoreContext = createContext(null);
