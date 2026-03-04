@@ -52,3 +52,16 @@ input, textarea { width: 100%; margin: 8px 0; }
 .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.95); display: grid; place-items: center; z-index: 100; }
 .spinner { width: 120px; height: 120px; border: 10px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg);} }
+
+.details-layout { margin-top: 12px; }
+.details-grid { display:grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.card-lite { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; }
+.segmented { display:flex; gap:8px; margin-bottom:10px; }
+.segmented button { border:1px solid #cbd5e1; background:#f8fafc; border-radius:8px; padding:8px 10px; }
+.segmented .active { background:#0f172a; color:#fff; }
+.right-tools { margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.right-tools button, .right-tools select { border:1px solid #d1d5db; background:#fff; border-radius:8px; padding:6px 8px; }
+@media (max-width: 960px) {
+  .details-grid { grid-template-columns: 1fr; }
+  .editor-topbar { grid-template-columns: 1fr; }
+}

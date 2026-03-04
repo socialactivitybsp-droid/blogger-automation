@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useMemo, useState } from 'react';
+import { createContext, createElement, useContext, useState } from 'react';
 
 const STORAGE_KEY = 'sociallia-news-agent';
 
@@ -8,13 +8,12 @@ const initialState = {
   labels: [],
   slug: '',
   search_description: '',
-  location: { name: '', lat: '', lng: '' },
+  location: { name: 'Bilaspur Chhattisgarh', lat: '22.0797', lng: '82.1391' },
   hero_image: '',
   blogs: [],
   posts: [],
   selectedBlogId: '',
   postId: '',
-  heroFile: null,
   showSettings: true,
   editorMode: 'compose',
 };
@@ -41,8 +40,14 @@ export function StoreProvider({ children }) {
     });
   };
 
-  const value = useMemo(() => ({ state, update }), [state]);
-  return createElement(StoreContext.Provider, { value }, children);
+  const resetDraft = () => update({
+    ...initialState,
+    blogs: state.blogs,
+    selectedBlogId: state.selectedBlogId,
+    posts: state.posts,
+  });
+
+  return createElement(StoreContext.Provider, { value: { state, update, resetDraft } }, children);
 }
 
 export function useStore() {

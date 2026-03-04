@@ -83,6 +83,11 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
+
+    if (pathname === '/api/auth/status' && req.method === 'GET') {
+      const saved = await readTokens();
+      return sendJson(res, 200, { bloggerSignedIn: Boolean(saved?.access_token) });
+    }
     if (pathname === '/api/auth/config' && req.method === 'GET') {
       const missing = requiredEnv.filter((key) => !process.env[key]);
       return sendJson(res, 200, {
