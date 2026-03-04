@@ -1,264 +1,275 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { StoreProvider, useStore } from './store/useStore';
+import { MASTER_TEMPLATE } from './utils/masterTemplate';
+import DashboardPage from './pages/DashboardPage';
+import PostDetailsPage from './pages/PostDetailsPage';
+import PostEditPage from './pages/PostEditPage';
 
-export default function App() {
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
 
-  const [mode, setMode] = useState("1");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [generated, setGenerated] = useState(null);
+function injectTemplate(hero, content) {
+  return MASTER_TEMPLATE.replaceAll('{{HERO_IMAGE}}', hero || '').replace('{{CONTENT}}', content || '<p></p>');
+}
+
+function parsePuterJson(rawText) {
+  const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
+  return {
+    title: parsed.title || '',
+    search_description: String(parsed.search_description || '').slice(0, 150),
+    slug: parsed.slug || '',
+    labels: Array.isArray(parsed.labels)
+      ? parsed.labels
+      : String(parsed.labels || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+    content_html: parsed.content_html || '<p></p>',
+    location: { name: 'Bilaspur Chhattisgarh', lat: '22.0797', lng: '82.1391' },
+    hero_image: parsed.hero_image || '',
+  };
+}
+
+async function uploadHeroToAppwrite(file) {
+  if (!file) return '';
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('Invalid image file selected. Please select a proper image again.');
+  }
+
+  const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+  const bucket = import.meta.env.VITE_APPWRITE_BUCKET_ID;
+  const project = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  const form = new FormData();
+  form.append('fileId', `hero_${Date.now()}`);
+  form.append('file', file, file.name);
+
+  const response = await fetch(`${endpoint}/storage/buckets/${bucket}/files`, {
+    method: 'POST',
+    headers: { 'X-Appwrite-Project': project },
+    body: form,
+    credentials: 'include',
+  });
+
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || 'Appwrite upload failed.');
+  return `${endpoint}/storage/buckets/${bucket}/files/${payload.$id}/view?project=${project}`;
+}
+
+function AppShell() {
+  const { state, update, resetDraft } = useStore();
+  const [page, setPage] = useState('dashboard');
+  const [authConfig, setAuthConfig] = useState({ googleClientId: '', googleRedirectUri: '', missing: [] });
+  const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [editorView, setEditorView] = useState("compose");
-  const [editableHtml, setEditableHtml] = useState("");
-  const MASTER_TEMPLATE = `
-      <h1 style="background-color: red; color: white; font-weight: bold; margin: 0px; padding: 15px 0px; text-align: center;">
-   <a href="https://socialactivitybspnews.blogspot.com/?m=1" style="color: white; text-decoration: none;" target="_blank">
-   Social Activity BSP<br />
-   </a>
-</h1>
-<div class="separator" style="clear: both; text-align: center;">
-   <a href="{{HERO_IMAGE}}" style="margin-left: 1em; margin-right: 1em;">
-   <img border="0" src="{{HERO_IMAGE}}" width="640" />
-   </a>
-</div>
-{{CONTENT}}
-<p><b><a href="https://socialactivitybspnews.blogspot.com/?m=1" style="color: black;" target="_blank">Social Activity BSP</a>👈</b></p>
-<p><b>रिपोर्ट :- शेख सरफराज़ अहमद</b></p>
-<br />
-<div class="separator" style="clear: both; text-align: center;"><a href="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjsvvbXOswrNZCgzR6BBo91tpBsj6LKJNDk30fPvTJ-1tkk0Rvno88yEQIs3iyfZOlbrWuRXCT4jh8UMdg3htX_-0nWBUJrmQaF1XAePpm90W_m_0hPf27LLcmt6Xo7cBIr7jCB_Dehyyf0DXjn6vVakxuP5s9K6qNxB_ovdwgm7xLWtCp6mPgI2Jchafg/s1050/WhatsApp%20Image%202025-10-30%20at%2010.13.42%20PM%20(1).jpeg" style="margin-left: 1em; margin-right: 1em;"><img border="0" data-original-height="600" data-original-width="1050" height="366" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjsvvbXOswrNZCgzR6BBo91tpBsj6LKJNDk30fPvTJ-1tkk0Rvno88yEQIs3iyfZOlbrWuRXCT4jh8UMdg3htX_-0nWBUJrmQaF1XAePpm90W_m_0hPf27LLcmt6Xo7cBIr7jCB_Dehyyf0DXjn6vVakxuP5s9K6qNxB_ovdwgm7xLWtCp6mPgI2Jchafg/w640-h366/WhatsApp%20Image%202025-10-30%20at%2010.13.42%20PM%20(1).jpeg" width="640" /></a></div>
-<br />
-<div class="separator" style="clear: both; text-align: center;"><a href="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgClphlYaOLdnfyFMlGZz2KpXlIc9MDJw9R-Ly0lzoD94syceA0WXZ3qrHKGP4oVRhT-dBy8USp7zrxztsm6lH-UYN-7R0rl0mAgmbpI3jlplpt9bCSZr1zZ_Be1QvcV2kSDDj0gzdYlBaGPCf8I_jHRw6rODP8dD-3y7BpBGpLJsRrv4NugJeebXNoqXE/s1280/WhatsApp%20Image%202025-10-30%20at%2010.13.42%20PM.jpeg" style="margin-left: 1em; margin-right: 1em;"><img border="0" data-original-height="853" data-original-width="1280" height="426" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgClphlYaOLdnfyFMlGZz2KpXlIc9MDJw9R-Ly0lzoD94syceA0WXZ3qrHKGP4oVRhT-dBy8USp7zrxztsm6lH-UYN-7R0rl0mAgmbpI3jlplpt9bCSZr1zZ_Be1QvcV2kSDDj0gzdYlBaGPCf8I_jHRw6rODP8dD-3y7BpBGpLJsRrv4NugJeebXNoqXE/w640-h426/WhatsApp%20Image%202025-10-30%20at%2010.13.42%20PM.jpeg" width="640" /></a></div>
-<p></p>
-<p></p>
-<div class="separator" style="clear: both; text-align: center;"><span style="margin-left: 1em; margin-right: 1em;"><a href="https://docs.google.com/forms/d/e/1FAIpQLSd6pKsoLJ09lAw1ixgZtNUTkp1P12jM-0Bx2WnRnQWSCEC0OQ/viewform?usp=publish-editor" target="_blank"><img border="0" data-original-height="3464" data-original-width="2598" height="640" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhX8a1eAtWW3A_X-yz2br0uxOSxgRDhUJQCVMxDpg6Hc0Y68jWr1pgN7TdiYIiLwbevptN8CkU1atyKyj6Ymlmlo0g9N4x_EEUDkt0q6Jwsr4Mvbj8SqGbpp6RzDhBGzpq1KB9-Hxuk-lee_CTgfSCkXH60EEoRw2wa5EF6f679zLBOzoOKNMagKPKUMPY/w480-h640/Picsart_25-10-26_20-03-09-271.jpg" width="480" /></a></span></div>
-<b>
-   <a href="https://docs.google.com/forms/d/e/1FAIpQLSd6pKsoLJ09lAw1ixgZtNUTkp1P12jM-0Bx2WnRnQWSCEC0OQ/viewform?usp=publish-editor" target="_blank">
-      <br />
-      <div style="text-align: center;"><b>Click here 👆👆</b></div>
-   </a>
-</b>
-<p></p>
-<div style="clear: both; text-align: center;">
-   <div style="align-items: center; backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.2); border-radius: 25px; box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 15px; display: flex; flex-direction: column; justify-content: center; margin: 20px auto; padding: 20px; text-align: center; width: 90%;">
-      <!--Profile Image-->
-      <img alt="Sheikh Sarfaraz Ahamad" src="https://imgdentifys.netlify.app/sarfraz.png" style="border-radius: 50%; border: 4px solid black; height: 120px; margin-bottom: 10px; object-fit: cover; width: 120px;" />
-      <!--Name-->
-      <div style="margin: 5px 0px;">
-         <a href="https://sarfarazahamad.blogspot.com/2025/10/social-activity-bsp-official-bio-page.html?m=1" style="color: black; font-size: 18px; font-weight: bold; text-decoration: none; text-shadow: rgba(0, 0, 0, 0.5) 1px 1px 3px;" target="_blank">
-         शेख सरफराज़ अहमद
-         </a>
-      </div>
-      <!--Channel-->
-      <div style="margin: 5px 0px;">
-         <a href="https://sarfarazahamad.blogspot.com/2025/10/social-activity-bsp-official-bio-page.html?m=1" style="color: black; font-size: 16px; text-decoration: none; text-shadow: rgba(0, 0, 0, 0.5) 1px 1px 3px;" target="_blank">
-         Social Activity BSP
-         </a>
-      </div>
-      <!--Role-->
-      <div style="margin: 5px 0px;">
-         <a href="https://sarfarazahamad.blogspot.com/2025/10/social-activity-bsp-official-bio-page.html?m=1" style="color: black; font-size: 15px; font-style: italic; text-decoration: none; text-shadow: rgba(0, 0, 0, 0.5) 1px 1px 3px;" target="_blank">
-         (Media Chief)
-         </a>
-      </div>
-   </div>
-   <br />
-   <p></p>
-   <!--Font Awesome CDN-->
-   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-   </link>
-   <div style="backdrop-filter: blur(10px); background-color: rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 25px 0px; text-align: center;">
-      <h2 style="color: black; font-family: Arial, Helvetica, sans-serif; font-size: 22px; margin-bottom: 15px;">Join Us</h2>
-      <div style="align-items: center; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
-         <!--WhatsApp Channel-->
-         <a href="https://whatsapp.com/channel/0029VaEdau3HbFV1YF0Ca50k" style="align-items: center; background-color: #25d366; border-radius: 50%; color: white; display: flex; font-size: 24px; height: 50px; justify-content: center; text-decoration: none; transition: 0.3s; width: 50px;" target="_blank">
-         <i class="fab fa-whatsapp"></i>
-         </a>
-         <!--WhatsApp Group-->
-         <a href="https://chat.whatsapp.com/Im3mG2HJjV7LqegyQWay3R?mode=ems_copy_t" style="align-items: center; background-color: #25d366; border-radius: 50%; color: white; display: flex; font-size: 24px; height: 50px; justify-content: center; text-decoration: none; transition: 0.3s; width: 50px;" target="_blank">
-         <i class="fab fa-whatsapp"></i>
-         </a>
-         <!--Instagram-->
-         <a href="https://www.instagram.com/socialactivitybsp?igsh=aDVubndqMXJ5c3Bm" style="align-items: center; background: radial-gradient(circle at 30% 107%, rgb(253, 244, 151) 0%, rgb(253, 244, 151) 5%, rgb(253, 89, 73) 45%, rgb(214, 36, 159) 60%, rgb(40, 90, 235) 90%); border-radius: 50%; color: white; display: flex; font-size: 24px; height: 50px; justify-content: center; text-decoration: none; transition: 0.3s; width: 50px;" target="_blank">
-         <i class="fab fa-instagram"></i>
-         </a>
-         <!--X (Twitter)-->
-         <a href="https://x.com/SocialActiv_BSP?t=9jzQcUIFX1RBb0NF2rGzPQ&amp;s=09" style="align-items: center; background-color: black; border-radius: 50%; color: white; display: flex; font-size: 24px; height: 50px; justify-content: center; text-decoration: none; transition: 0.3s; width: 50px;" target="_blank">
-         <i class="fab fa-x-twitter"></i>
-         </a>
-         <!--YouTube-->
-         <a href="https://youtube.com/@socialactivitybsp?si=sFWhijhXgQAzwvnC" style="align-items: center; background-color: red; border-radius: 50%; color: white; display: flex; font-size: 24px; height: 50px; justify-content: center; text-decoration: none; transition: 0.3s; width: 50px;" target="_blank">
-         <i class="fab fa-youtube"></i>
-         </a>
-      </div>
-   </div>
-</div>
-`;
+  const [puterUser, setPuterUser] = useState('Not signed in');
+  const [bloggerSignedIn, setBloggerSignedIn] = useState(false);
+  const heroFileRef = useRef(null);
 
-  const generatePost = async () => {
+  const bloggerOAuthUrl = useMemo(() => {
+    if (!authConfig.googleClientId || !authConfig.googleRedirectUri) return '';
+    const params = new URLSearchParams({
+      client_id: authConfig.googleClientId,
+      redirect_uri: authConfig.googleRedirectUri,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/blogger',
+      access_type: 'offline',
+      prompt: 'consent',
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }, [authConfig]);
 
-  if (!description) return alert("Description required");
+  useEffect(() => {
+    fetch(`${API_BASE}/api/auth/config`).then((r) => r.json()).then(setAuthConfig).catch(() => {});
+    fetch(`${API_BASE}/api/auth/status`)
+      .then((r) => r.json())
+      .then((p) => setBloggerSignedIn(Boolean(p.bloggerSignedIn)))
+      .catch(() => {});
+  }, []);
 
-  setLoading(true);
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (!code) return;
+    fetch(`${API_BASE}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    })
+      .then((r) => r.json())
+      .then((payload) => {
+        if (payload.error) throw new Error(payload.error);
+        setBloggerSignedIn(true);
+        setMsg('Blogger OAuth connected successfully.');
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch((error) => setMsg(`OAuth failed: ${error.message}`));
+  }, []);
 
-  let prompt = `
-  You are a Hindi local news generator for Bilaspur.
-  Location default: Bilaspur.
-  Avoid unsafe or graphic details.
+  const safe = async (fn) => {
+    try {
+      setMsg('');
+      await fn();
+    } catch (error) {
+      setMsg(error.message);
+    }
+  };
 
-  Return strictly JSON:
-  {
-    "title":"",
-    "search_description":"",
-    "slug":"",
-    "labels":"",
-    "html":""
-  }
-  `;
+  const fetchBlogs = async () => {
+    const response = await fetch(`${API_BASE}/api/user/blogs`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Failed to load blogs');
+    update({ blogs: payload.blogs, selectedBlogId: payload.blogs[0]?.id || '' });
+  };
 
-  if (mode === "1") {
-    prompt += `
-    Improve this title for SEO: ${title}
-    Use this description: ${description}
-    `;
-  } else {
-    prompt += `
-    Generate SEO title from this:
-    ${description}
-    `;
-  }
+  const fetchPosts = async () => {
+    if (!state.selectedBlogId) throw new Error('Select blog first');
+    const response = await fetch(`${API_BASE}/api/blogger/posts?blogId=${state.selectedBlogId}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Failed to load posts');
+    update({ posts: payload.posts || [] });
+  };
 
-  try {
+  const openNewPost = () => {
+    const hasUnsaved = Boolean(state.title?.trim() || state.search_description?.trim() || (state.content_html || '').replace(/<[^>]+>/g, '').trim());
+    if (hasUnsaved && !state.postId) {
+      const keep = window.confirm('Do you want to open previous (Unsaved) post?\nPress OK = Yes, Cancel = No (start blank).');
+      if (!keep) {
+        resetDraft();
+      }
+    }
+    setPage('details');
+  };
 
-    // 🔥 YOU FORGOT THIS
-    const response = await window.puter.ai.chat(prompt);
+  const generateWithPuter = async ({ mode, seedTitle, description }) => {
+    setLoading(true);
+    try {
+      let heroUrl = state.hero_image;
+      if (heroFileRef.current) {
+        heroUrl = await uploadHeroToAppwrite(heroFileRef.current);
+      }
 
-    const raw = response.message.content
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
+      const prompt = `Return STRICT JSON only with keys: title,search_description,slug,labels,hero_image,content_html,location.
+Rules:
+- location must always be "Bilaspur Chhattisgarh".
+- search_description must be <= 150 chars.
+- content_html must be full clean HTML paragraphs/headings.
+mode:${mode}\nseedTitle:${seedTitle}\ndescription:${description}`;
 
-    const data = JSON.parse(raw);
+      const ai = await window.puter.ai.chat(prompt);
+      const generated = parsePuterJson(ai?.message?.content || '{}');
+      const contentWithTemplate = injectTemplate(heroUrl || generated.hero_image, generated.content_html);
+      update({ ...generated, hero_image: heroUrl || generated.hero_image, content_html: contentWithTemplate, showSettings: true, editorMode: 'compose', postId: '' });
+      setPage('edit');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Clean newline issue properly
-    const cleanedHtml = data.html
-      .replace(/\\n/g, "")
-      .replace(/\n/g, "");
+  const publish = async (publishMode) => {
+    const response = await fetch(`${API_BASE}/api/blogger/publish`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blogId: state.selectedBlogId, title: state.title, content: state.content_html, labels: state.labels, publishMode }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Publish failed');
+    setMsg(`Success: ${payload.url}`);
+    await fetchPosts();
+    setPage('dashboard');
+  };
 
-    // Override html inside data
-    data.html = cleanedHtml;
+  const updateExistingPost = async () => {
+    const response = await fetch(`${API_BASE}/api/blogger/update`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blogId: state.selectedBlogId, postId: state.postId, title: state.title, content: state.content_html, labels: state.labels }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Update failed');
+    setMsg(`Updated: ${payload.url}`);
+    await fetchPosts();
+    setPage('dashboard');
+  };
 
-    setGenerated(data);
-    setEditableHtml(cleanedHtml);
+  const editPost = (post) => {
+    update({
+      postId: post.id,
+      title: post.title || '',
+      content_html: post.content || '<p></p>',
+      labels: post.labels || [],
+      showSettings: true,
+      editorMode: 'compose',
+      location: { name: 'Bilaspur Chhattisgarh', lat: '22.0797', lng: '82.1391' },
+    });
+    setPage('edit');
+  };
 
-  } catch (err) {
-    console.error(err);
-    alert("AI Error");
-  }
+  const runComposeCommand = (command, value = null) => {
+    if (state.editorMode !== 'compose') return;
+    const compose = document.getElementById('compose-editor');
+    compose?.focus();
+    if (command === 'createLink') {
+      const url = window.prompt('Enter URL');
+      if (!url) return;
+      document.execCommand(command, false, url);
+    } else {
+      document.execCommand(command, false, value);
+    }
+    if (compose) update({ content_html: compose.innerHTML });
+  };
 
-  setLoading(false);
-};
+  const onHeroSelect = async (file) => {
+    heroFileRef.current = file;
+    if (!file) return;
+    const localUrl = URL.createObjectURL(file);
+    update({ hero_image: localUrl });
+  };
 
   return (
-    <div style={{ padding: 20, fontFamily: "Arial" }}>
-      <h2>AI Blogger Newsroom</h2>
+    <main className="cms-shell">
+      <header className="cms-header">
+        <div>
+          <h1>Sociallia News Agent</h1>
+          <p className="sub">AI-assisted CMS for Blogger publishing</p>
+        </div>
+        <div className="actions">
+          <a className="btn pulse" href={bloggerOAuthUrl || '#'}>
+            {bloggerSignedIn ? 'Signed In to Blogger' : 'Connect Blogger OAuth'}
+          </a>
+          <button
+            className="btn dark pulse"
+            type="button"
+            onClick={() => safe(async () => {
+              if (!window.puter?.auth?.signIn) throw new Error('Puter.js unavailable');
+              await window.puter.auth.signIn();
+              const profile = await window.puter.auth.getUser?.();
+              setPuterUser(profile?.username || profile?.email || profile?.name || 'Connected User');
+            })}
+          >
+            {`Puter: ${puterUser}`}
+          </button>
+        </div>
+      </header>
 
-      {/* Mode Toggle */}
-      <div>
-        <label>
-          <input type="radio" value="1" checked={mode==="1"} onChange={()=>setMode("1")} />
-          Title + Description
-        </label>
+      <section className="top-controls">
+        <button className="btn dark pulse" type="button" onClick={() => setPage('dashboard')}>Dashboard</button>
+        <button className="btn dark pulse" type="button" onClick={openNewPost}>+ New Post</button>
+        <button className="btn dark pulse" type="button" onClick={() => safe(fetchBlogs)}>Load Blogs</button>
+        <select value={state.selectedBlogId} onChange={(e) => update({ selectedBlogId: e.target.value })}>
+          <option value="">Select blog</option>
+          {state.blogs.map((blog) => <option key={blog.id} value={blog.id}>{blog.name}</option>)}
+        </select>
+      </section>
 
-        <label style={{marginLeft:20}}>
-          <input type="radio" value="2" checked={mode==="2"} onChange={()=>setMode("2")} />
-          Description Only
-        </label>
-      </div>
+      {authConfig.missing?.length ? <p className="msg">Missing backend env: {authConfig.missing.join(', ')}</p> : null}
+      {msg ? <p className="msg">{msg}</p> : null}
 
-      {/* Inputs */}
-      {mode === "1" && (
-        <input
-          placeholder="Enter Title"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          style={{ width:"100%", marginTop:10 }}
-        />
-      )}
+      {page === 'dashboard' ? <DashboardPage state={state} onCreate={openNewPost} onLoadPosts={() => safe(fetchPosts)} onEditPost={editPost} /> : null}
+      {page === 'details' ? <PostDetailsPage state={state} onHeroSelect={onHeroSelect} onGenerateWithPuter={(args) => safe(() => generateWithPuter(args))} onNext={({ seedTitle, description }) => { update({ title: seedTitle, search_description: description.slice(0, 150) }); setPage('edit'); }} /> : null}
+      {page === 'edit' ? <PostEditPage state={state} update={update} onBack={() => setPage('details')} onPublish={() => safe(() => publish('LIVE'))} onSaveDraft={() => safe(() => publish('DRAFT'))} onUpdatePost={() => safe(updateExistingPost)} isExisting={Boolean(state.postId)} onCommand={runComposeCommand} /> : null}
 
-      <textarea
-        placeholder="Enter Description"
-        value={description}
-        onChange={e => setDescription(e.target.value)}
-        style={{ width:"100%", marginTop:10, height:120 }}
-      />
-
-      <button onClick={generatePost} disabled={loading} style={{marginTop:10}}>
-        {loading ? "Generating..." : "Generate"}
-      </button>
-
-      {/* Output */}
-      {generated && (
-  <div style={{ marginTop: 30 }}>
-
-    <h3>Meta Data</h3>
-    <p><b>Title:</b> {generated.title}</p>
-    <p><b>Search Description:</b> {generated.search_description}</p>
-    <p><b>Slug:</b> {generated.slug}</p>
-    <p><b>Labels:</b> {generated.labels}</p>
-
-    <hr />
-
-    {/* View Toggle */}
-    <div style={{ marginBottom: 10 }}>
-      <button
-        onClick={() => setEditorView("compose")}
-        style={{
-          marginRight: 10,
-          background: editorView === "compose" ? "#222" : "#ccc",
-          color: editorView === "compose" ? "#fff" : "#000"
-        }}
-      >
-        Compose
-      </button>
-
-      <button
-        onClick={() => setEditorView("html")}
-        style={{
-          background: editorView === "html" ? "#222" : "#ccc",
-          color: editorView === "html" ? "#fff" : "#000"
-        }}
-      >
-        HTML
-      </button>
-    </div>
-
-    {/* Compose View */}
-    {editorView === "compose" && (
-      <div
-        dangerouslySetInnerHTML={{ __html: editableHtml }}
-        style={{
-          border: "1px solid #ccc",
-          padding: 15,
-          minHeight: 200
-        }}
-      />
-    )}
-
-    {/* HTML View */}
-    {editorView === "html" && (
-      <textarea
-        value={editableHtml}
-        onChange={(e) => setEditableHtml(e.target.value)}
-        style={{
-          width: "100%",
-          height: 300,
-          fontFamily: "monospace",
-          border: "1px solid #ccc",
-          padding: 10
-        }}
-      />
-    )}
-  </div>
-)}
-    </div>
+      {loading ? <div className="overlay"><div className="spinner" /><h2>Generating</h2></div> : null}
+    </main>
   );
+}
+
+export default function App() {
+  return <StoreProvider><AppShell /></StoreProvider>;
 }
